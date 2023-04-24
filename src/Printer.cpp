@@ -61,6 +61,7 @@ void clearAddTime()
   addTime[0] = addTime[1] = addTime[2] = addTime[3] = addTime[4] = addTime[5] = 0;
 }
 
+// SPI发送数据函数
 void sendData(uint8_t *dataPointer)
 {
   for (uint8_t i = 0; i < 6; ++i)
@@ -118,7 +119,7 @@ void startPrint()
       if (motor_add != 40)
       {
         delayMicroseconds((PRINT_TIME) * ((double)heat_density / 100));
-        goFront1();
+        // goFront1();
       }
       else
       {
@@ -126,38 +127,47 @@ void startPrint()
       }
       clearAddTime();
       sendData(printData + pointer);
-      digitalWrite(PIN_STB1, 1);
-      delayMicroseconds((PRINT_TIME + addTime[0] + STB1_ADDTIME) * ((double)heat_density / 100));
-      digitalWrite(PIN_STB1, 0);
-      delayMicroseconds(PRINT_TIME_);
+      for (char l = 0; l < 4; l++)//重复打印4次，否则直线会向下偏移
+      {
+        digitalWrite(PIN_STB1, 1);
+        delayMicroseconds((PRINT_TIME + addTime[0] + STB1_ADDTIME) * ((double)heat_density / 100));
+        digitalWrite(PIN_STB1, 0);
+        delayMicroseconds(PRINT_TIME_);
 
-      digitalWrite(PIN_STB2, 1);
-      delayMicroseconds((PRINT_TIME + addTime[1] + STB2_ADDTIME) * ((double)heat_density / 100));
-      digitalWrite(PIN_STB2, 0);
-      delayMicroseconds(PRINT_TIME_);
-      goFront1();
+        digitalWrite(PIN_STB2, 1);
+        delayMicroseconds((PRINT_TIME + addTime[1] + STB2_ADDTIME) * ((double)heat_density / 100));
+        digitalWrite(PIN_STB2, 0);
+        delayMicroseconds(PRINT_TIME_);
+        // goFront1();
 
-      digitalWrite(PIN_STB3, 1);
-      delayMicroseconds((PRINT_TIME + addTime[2] + STB3_ADDTIME) * ((double)heat_density / 100));
-      digitalWrite(PIN_STB3, 0);
-      delayMicroseconds(PRINT_TIME_);
+        digitalWrite(PIN_STB3, 1);
+        delayMicroseconds((PRINT_TIME + addTime[2] + STB3_ADDTIME) * ((double)heat_density / 100));
+        digitalWrite(PIN_STB3, 0);
+        delayMicroseconds(PRINT_TIME_);
 
-      digitalWrite(PIN_STB4, 1);
-      delayMicroseconds((PRINT_TIME + addTime[3] + STB4_ADDTIME) * ((double)heat_density / 100));
-      digitalWrite(PIN_STB4, 0);
-      delayMicroseconds(PRINT_TIME_);
-      goFront1();
+        digitalWrite(PIN_STB4, 1);
+        delayMicroseconds((PRINT_TIME + addTime[3] + STB4_ADDTIME) * ((double)heat_density / 100));
+        digitalWrite(PIN_STB4, 0);
+        delayMicroseconds(PRINT_TIME_);
+        // goFront1();
 
-      digitalWrite(PIN_STB5, 1);
-      delayMicroseconds((PRINT_TIME + addTime[4] + STB5_ADDTIME) * ((double)heat_density / 100));
-      digitalWrite(PIN_STB5, 0);
-      delayMicroseconds(PRINT_TIME_);
+        digitalWrite(PIN_STB5, 1);
+        delayMicroseconds((PRINT_TIME + addTime[4] + STB5_ADDTIME) * ((double)heat_density / 100));
+        digitalWrite(PIN_STB5, 0);
+        delayMicroseconds(PRINT_TIME_);
 
-      digitalWrite(PIN_STB6, 1);
-      delayMicroseconds((PRINT_TIME + addTime[5] + STB6_ADDTIME) * ((double)heat_density / 100));
-      digitalWrite(PIN_STB6, 0);
-      delayMicroseconds(PRINT_TIME_);
-      goFront1();
+        digitalWrite(PIN_STB6, 1);
+        delayMicroseconds((PRINT_TIME + addTime[5] + STB6_ADDTIME) * ((double)heat_density / 100));
+        digitalWrite(PIN_STB6, 0);
+        delayMicroseconds(PRINT_TIME_);
+        goFront1();
+      }
+      // delayMicroseconds(PRINT_TIME_);
+      // goFront1();
+      // delayMicroseconds(PRINT_TIME_);
+      // goFront1();
+      // delayMicroseconds(PRINT_TIME_);
+      // goFront1();
     }
 
     digitalWrite(PIN_MOTOR_AP, 0);

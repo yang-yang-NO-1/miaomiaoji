@@ -37,6 +37,8 @@ extern void testPage(uint8_t stb);
 extern void testSTB();
 extern void ButtonRun();
 extern void STAPowerOFF();
+// 获取打印头温度
+extern void HeatTemp();
 
 #define START_BYTE 0x02             // 开始字节
 #define END_BYTE 0x03               // 结束字节
@@ -282,7 +284,7 @@ void paperang_process_data()
     break;
   // 获取打印头温度
   case GET_TEMP:
-    // HeatTemp();
+    HeatTemp();// 获取温度值
     paperang_send_msg(SENT_TEMP, &head_temp, 1);
     break;
   // 进料线
@@ -416,7 +418,7 @@ void paperang_app()
         i = packHeader.dataLen - 1;
         if (packHeader.packType == PRINT_DATA)
         {
-          printData[printDataCount++] = c;
+          printData[printDataCount++] = c;// 蓝牙收到的打印数据
           while (i)
           {
             while (SerialBT.available() == 0)
@@ -427,7 +429,7 @@ void paperang_app()
         }
         else
         {
-          dataPack_read[dataPack_read_pos++] = c;
+          dataPack_read[dataPack_read_pos++] = c;// 收到的其他信息
           while (i)
           {
             dataPack_read[dataPack_read_pos++] = SerialBT.read();
@@ -441,7 +443,7 @@ void paperang_app()
       }
       else if (c == END_BYTE && readpos == 7)
       {
-        paperang_process_data();
+        paperang_process_data();// 收到数据结束标志后，下一步进程
         gotStartByte = 0;
         dataPack_read_pos = 0;
         readpos = 0;
