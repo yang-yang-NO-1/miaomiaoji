@@ -100,7 +100,7 @@ void clearData(void)
 请修改startPrint函数中的goFront1()函数出现位置和次数，这个函数的作用是使打印头步进电机走1步 */
 void startPrint()
 {
-  if (PaperSta == 1)
+  if (PaperSta == 1)// 判断是否有纸
   {
     static unsigned char motor_add = 0;
     startBeep();
@@ -126,7 +126,7 @@ void startPrint()
         motor_add = 0;
       }
       clearAddTime();
-      sendData(printData + pointer);
+      sendData(printData + pointer);// 每次发送48个8bit数据共384，即打印机一行的点数
       for (char l = 0; l < 4; l++)//重复打印4次，否则直线会向下偏移
       {
         digitalWrite(PIN_STB1, 1);

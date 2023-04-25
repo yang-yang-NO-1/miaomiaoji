@@ -98,14 +98,14 @@ void HeatTemp()
 }
 
 // 缺纸检测
-/*
+
 void PaperCheck(){
   if(digitalRead(PIN_PTEST)==1){
     digitalWrite(PIN_VHEN, 0);
     Serial.println("[INFO]no paper");
     PaperSta = 0;
     startBeep();
-    delay(1000);
+    delay(500);
     stopBeep();
     delay(100);
     startBeep();
@@ -116,4 +116,4 @@ void PaperCheck(){
     PaperSta = 1;
   }
 }
-*/
+

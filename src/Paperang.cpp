@@ -38,7 +38,8 @@ extern void testSTB();
 extern void ButtonRun();
 extern void STAPowerOFF();
 // 获取打印头温度
-extern void HeatTemp();
+void HeatTemp();
+extern void PaperCheck();
 
 #define START_BYTE 0x02             // 开始字节
 #define END_BYTE 0x03               // 结束字节
@@ -396,9 +397,12 @@ void paperang_app()
   {
     ButtonRun();
     STAPowerOFF();
+    // HeatTemp();
+    PaperCheck();
+    // BatteryPower();
     if (SerialBT.available())
     {
-      c = SerialBT.read();
+      c = SerialBT.read();// SerialBT.read()每次接受8bit数据
       if (c == START_BYTE && gotStartByte == 0)
       {
         gotStartByte = 1;
