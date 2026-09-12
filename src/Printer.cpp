@@ -1,9 +1,9 @@
 #include "main.h"
 #include <SPI.h>
+#include <cstring>
 
 extern SPIClass printerSPI;
 extern SPISettings printerSPISettings;
-extern void clearSTB();
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 步进电机驱动部分
@@ -98,90 +98,122 @@ void clearData(void)
 
 /* 默认打印头步进电机转4步，打印机走纸一像素的距离，如果发现打印的文字长度过长或过扁，
 请修改startPrint函数中的goFront1()函数出现位置和次数，这个函数的作用是使打印头步进电机走1步 */
-void startPrint()
+uint32_t startPrint()
 {
-  if (PaperSta == 1)// 判断是否有纸
+  const uint32_t totalRows = printDataCount / 48;
+  uint32_t completedRows = 0;
+
+  if (totalRows == 0)
   {
-    static unsigned char motor_add = 0;
-    startBeep();
-    delay(200);
-    stopBeep();
+    return 0;
+  }
 
-    Serial.println("[INFO]正在打印...");
-    Serial.printf("[INFO]共%u行\n", printDataCount / 48);
-    digitalWrite(PIN_VHEN, 1);
-    // digitalWrite(PIN_STATUS, 1);
+  // 开始打印前强制检查缺纸与打印头温度。
+  if (!PrinterSafetyCheck(true))
+  {
+    clearSTB();
+    digitalWrite(PIN_VHEN, 0);
+    printDataCount = 0;
+    return 0;
+  }
 
-    for (uint32_t pointer = 0; pointer < printDataCount; pointer += 48)
+  static unsigned char motor_add = 0;
+  startBeep();
+  delay(200);
+  stopBeep();
+
+  Serial.println("[INFO]正在打印...");
+  Serial.printf("[INFO]共%u行\n", totalRows);
+  digitalWrite(PIN_VHEN, 1);
+
+  for (uint32_t pointer = 0; pointer < printDataCount; pointer += 48)
+  {
+    const uint32_t row = pointer / 48;
+
+    // 缺纸信号来自比较器数字输出，打印过程中每行检查一次；一旦缺纸立即切断VH。
+    if (!IsPaperPresent())
     {
-
-      motor_add++;
-      if (motor_add != 40)
-      {
-        delayMicroseconds((PRINT_TIME) * ((double)heat_density / 100));
-        // goFront1();
-      }
-      else
-      {
-        motor_add = 0;
-      }
-      clearAddTime();
-      sendData(printData + pointer);// 每次发送48个8bit数据共384，即打印机一行的点数
-      for (char l = 0; l < 4; l++)//重复打印4次，否则直线会向下偏移
-      {
-        digitalWrite(PIN_STB1, 1);
-        delayMicroseconds((PRINT_TIME + addTime[0] + STB1_ADDTIME) * ((double)heat_density / 100));
-        digitalWrite(PIN_STB1, 0);
-        delayMicroseconds(PRINT_TIME_);
-
-        digitalWrite(PIN_STB2, 1);
-        delayMicroseconds((PRINT_TIME + addTime[1] + STB2_ADDTIME) * ((double)heat_density / 100));
-        digitalWrite(PIN_STB2, 0);
-        delayMicroseconds(PRINT_TIME_);
-        // goFront1();
-
-        digitalWrite(PIN_STB3, 1);
-        delayMicroseconds((PRINT_TIME + addTime[2] + STB3_ADDTIME) * ((double)heat_density / 100));
-        digitalWrite(PIN_STB3, 0);
-        delayMicroseconds(PRINT_TIME_);
-
-        digitalWrite(PIN_STB4, 1);
-        delayMicroseconds((PRINT_TIME + addTime[3] + STB4_ADDTIME) * ((double)heat_density / 100));
-        digitalWrite(PIN_STB4, 0);
-        delayMicroseconds(PRINT_TIME_);
-        // goFront1();
-
-        digitalWrite(PIN_STB5, 1);
-        delayMicroseconds((PRINT_TIME + addTime[4] + STB5_ADDTIME) * ((double)heat_density / 100));
-        digitalWrite(PIN_STB5, 0);
-        delayMicroseconds(PRINT_TIME_);
-
-        digitalWrite(PIN_STB6, 1);
-        delayMicroseconds((PRINT_TIME + addTime[5] + STB6_ADDTIME) * ((double)heat_density / 100));
-        digitalWrite(PIN_STB6, 0);
-        delayMicroseconds(PRINT_TIME_);
-        goFront1();
-      }
-      // delayMicroseconds(PRINT_TIME_);
-      // goFront1();
-      // delayMicroseconds(PRINT_TIME_);
-      // goFront1();
-      // delayMicroseconds(PRINT_TIME_);
-      // goFront1();
+      (void)PrinterSafetyCheck(false);
+      Serial.printf("[SAFETY] 打印中缺纸，已停止于 %u/%u 行\n", completedRows, totalRows);
+      break;
     }
 
-    digitalWrite(PIN_MOTOR_AP, 0);
-    digitalWrite(PIN_MOTOR_AM, 0);
-    digitalWrite(PIN_MOTOR_BP, 0);
-    digitalWrite(PIN_MOTOR_BM, 0);
+    // 每8行检查一次温度。达到60°C自动暂停，降到55°C后继续。
+    if ((row % TEMP_CHECK_EVERY_ROWS) == 0)
+    {
+      if (!PrinterSafetyCheck(true))
+      {
+        Serial.printf("[SAFETY] 打印安全检查失败，已停止于 %u/%u 行\n", completedRows, totalRows);
+        break;
+      }
+      // PrinterSafetyCheck在过温时会关闭VH，冷却恢复后重新打开。
+      digitalWrite(PIN_VHEN, 1);
+    }
+
+    motor_add++;
+    if (motor_add != 40)
+    {
+      delayMicroseconds((PRINT_TIME) * ((double)heat_density / 100));
+    }
+    else
+    {
+      motor_add = 0;
+    }
 
     clearAddTime();
-    clearSTB();
-    clearData();
-    printDataCount = 0;
+    sendData(printData + pointer); // 每次发送48个8bit数据共384点
+
+    for (char l = 0; l < 4; l++) // 重复打印4次，否则直线会向下偏移
+    {
+      digitalWrite(PIN_STB1, 1);
+      delayMicroseconds((PRINT_TIME + addTime[0] + STB1_ADDTIME) * ((double)heat_density / 100));
+      digitalWrite(PIN_STB1, 0);
+      delayMicroseconds(PRINT_TIME_);
+
+      digitalWrite(PIN_STB2, 1);
+      delayMicroseconds((PRINT_TIME + addTime[1] + STB2_ADDTIME) * ((double)heat_density / 100));
+      digitalWrite(PIN_STB2, 0);
+      delayMicroseconds(PRINT_TIME_);
+
+      digitalWrite(PIN_STB3, 1);
+      delayMicroseconds((PRINT_TIME + addTime[2] + STB3_ADDTIME) * ((double)heat_density / 100));
+      digitalWrite(PIN_STB3, 0);
+      delayMicroseconds(PRINT_TIME_);
+
+      digitalWrite(PIN_STB4, 1);
+      delayMicroseconds((PRINT_TIME + addTime[3] + STB4_ADDTIME) * ((double)heat_density / 100));
+      digitalWrite(PIN_STB4, 0);
+      delayMicroseconds(PRINT_TIME_);
+
+      digitalWrite(PIN_STB5, 1);
+      delayMicroseconds((PRINT_TIME + addTime[4] + STB5_ADDTIME) * ((double)heat_density / 100));
+      digitalWrite(PIN_STB5, 0);
+      delayMicroseconds(PRINT_TIME_);
+
+      digitalWrite(PIN_STB6, 1);
+      delayMicroseconds((PRINT_TIME + addTime[5] + STB6_ADDTIME) * ((double)heat_density / 100));
+      digitalWrite(PIN_STB6, 0);
+      delayMicroseconds(PRINT_TIME_);
+      goFront1();
+    }
+
+    completedRows++;
+  }
+
+  digitalWrite(PIN_MOTOR_AP, 0);
+  digitalWrite(PIN_MOTOR_AM, 0);
+  digitalWrite(PIN_MOTOR_BP, 0);
+  digitalWrite(PIN_MOTOR_BM, 0);
+  digitalWrite(PIN_VHEN, 0);
+
+  clearAddTime();
+  clearSTB();
+  clearData();
+  printDataCount = 0;
+
+  if (completedRows == totalRows)
+  {
     Serial.println("[INFO]打印完成");
-    digitalWrite(PIN_VHEN, 0);
-    // digitalWrite(PIN_STATUS, 0);
     startBeep();
     delay(100);
     stopBeep();
@@ -190,11 +222,18 @@ void startPrint()
     delay(100);
     stopBeep();
   }
+  else
+  {
+    Serial.printf("[WARN]打印未完成: %u/%u行\n", completedRows, totalRows);
+  }
+
+  return completedRows;
 }
 
 void startPrint(uint8_t stb)
 {
-  if (PaperSta == 1)
+  PaperCheck();
+  if (PaperSta == 1 && PrinterSafetyCheck(true))
   {
     static unsigned char motor_add = 0;
     startBeep();
@@ -207,6 +246,13 @@ void startPrint(uint8_t stb)
     // digitalWrite(PIN_STATUS, 1);
     for (uint32_t pointer = 0; pointer < printDataCount; pointer += 48)
     {
+      const uint32_t row = pointer / 48;
+      if (!IsPaperPresent() || ((row % TEMP_CHECK_EVERY_ROWS) == 0 && !PrinterSafetyCheck(true)))
+      {
+        Serial.println("[SAFETY] STB测试打印已停止");
+        break;
+      }
+      digitalWrite(PIN_VHEN, 1);
       motor_add++;
       if (motor_add != 40)
       {
@@ -297,7 +343,7 @@ void testPage(uint8_t stb)
   Serial.println("开始打印 颜色深度-同时打印点数 测试页\n可根据此页调整加热时间常数");
   uint8_t printchr[8] = {0};
   uint8_t i, j, k;
-  uint8_t dots, dotsnow;
+  uint8_t dotsnow;
   printDataCount = 0;
   for (uint32_t cleardata = 0; cleardata < 102400; ++cleardata)
   {
